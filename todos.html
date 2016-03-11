@@ -5,7 +5,9 @@
 <template name="main">
 	<h1>Todos</h1>
 	{{> navigation}}
-	{{> lists}}
+	{{#if currentUser}}
+		{{> lists}}
+	{{/if}}
 	{{> yield}} <!-- this is where content of a route appears -->
 	<hr /> <!-- created header and footer in the same template -->
 	<p>Copyright &copy; Todos, 2015-2016.</p>
@@ -14,8 +16,12 @@
 <template name="navigation">
 	<ul>
 		<li><a href="{{pathFor route='home'}}">Home</a></li>
-		<li><a href="{{pathFor route='register'}}">Register</a></li>
-		<li><a href="{{pathFor route='login'}}">Login</a></li>
+		{{#if currentUser}} <!-- build in accounts-password -->
+			<li><a href="#" class="logout">Logout</a></li>
+		{{else}}
+			<li><a href="{{pathFor route='register'}}">Register</a></li>
+			<li><a href="{{pathFor route='login'}}">Login</a></li>
+		{{/if}}
 	</ul>
 </template>
 
@@ -51,10 +57,6 @@
 	{{/if}}
 </template>
 
-<template name="login">
-	<h2>Login</h2>
-</template>
-
 <template name="lists">
 	<h2>Lists</h2>
 	{{> addList}}
@@ -83,5 +85,14 @@
 		<p>Password: <input type="password" name="password"></p>
 		<p><input type="submit" value="Register"></p>
 
+	</form>
+</template>
+
+<template name="login">
+<h2>Login</h2>
+	<form class="login">
+		<p>Email: <input type="email" name="email"></p>
+		<p>Password: <input type="password" name="password"></p>
+		<p><input type="submit" value="Login"></p>
 	</form>
 </template>

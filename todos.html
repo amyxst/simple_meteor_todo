@@ -1,0 +1,87 @@
+<template name="home">
+	<p>Welcome to the Todos application</p>
+</template>
+
+<template name="main">
+	<h1>Todos</h1>
+	{{> navigation}}
+	{{> lists}}
+	{{> yield}} <!-- this is where content of a route appears -->
+	<hr /> <!-- created header and footer in the same template -->
+	<p>Copyright &copy; Todos, 2015-2016.</p>
+</template>
+
+<template name="navigation">
+	<ul>
+		<li><a href="{{pathFor route='home'}}">Home</a></li>
+		<li><a href="{{pathFor route='register'}}">Register</a></li>
+		<li><a href="{{pathFor route='login'}}">Login</a></li>
+	</ul>
+</template>
+
+<template name="todos">
+	{{> addTodo}}
+	<ul>
+	{{#each todo}} <!-- todo is referencing the function, which returns an object with vals we want -->
+		{{> todoItem}} <!-- IMPORTANT: within the "todo" context, that's how the helper knows what 'this' is -->
+	{{/each}}
+	</ul>
+
+	{{> todosCount}}
+</template>
+
+<template name="todoItem">
+	<li class="{{checked}}"> <!-- allows styling now depending on whether or not textbox is checked -->
+		<input type="checkbox" {{checked}}> <!-- checked keyword sets checkbox's behaviour -->
+		<input type="text" value="{{name}}" name="todoItem">
+		[<a href="#" class="delete-todo">x</a>]
+	</li> <!-- later when this item is changed, only this one has to referesh vs. whole list -->
+</template>
+
+<template name="addTodo">
+	<form>
+		Create a task:
+		<input type="text" placeholder="Type a task here..." name="todoName"> <!-- name allows reference from .js -->
+	</form>
+</template>
+
+<template name="todosCount">
+	{{#if totalTodos}}
+		<p>You have completed {{completedTodos}} out of {{totalTodos}}</p>
+	{{/if}}
+</template>
+
+<template name="login">
+	<h2>Login</h2>
+</template>
+
+<template name="lists">
+	<h2>Lists</h2>
+	{{> addList}}
+	<ul>
+		{{#each list}}
+			<li><a href="{{pathFor route='listPage'}}">{{name}}</a></li>
+		{{/each}} <!-- when linking to listPage route, Iron Router knows _id is retrievable, and gets it from the each context -->
+	</ul>
+</template>
+
+<template name="addList">
+	<form>Create a list:
+		<input type="text" placeholder="List name here..." name="listName">
+	</form>
+</template>
+
+<template name="listPage">
+	<h2>Tasks: {{name}}</h2> <!-- name of entry from findOne -->
+	{{> todos}}
+</template>
+
+<template name="register">
+	<h2>Register</h2>
+	<form class="register">
+		<p>Email: <input type="email" name="email"></p>
+		<p>Password: <input type="password" name="password"></p>
+		<p><input type="submit" value="Register"></p>
+
+	</form>
+</template>

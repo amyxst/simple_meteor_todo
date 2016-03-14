@@ -163,7 +163,10 @@ if (Meteor.isClient) {
           console.log(error.reason);
         }
         else {
-          Router.go('home');
+          var currentRoute = Router.current().route.getName();
+          if (currentRoute == "login") {
+            Router.go("home"); // only redirect to home if at login page, otherwise stay at rounte
+          } // QUESTION: after user logs in, then is the rendering of the route (i.e. not login) handled by if (currentUser), this.next()?
         }
       });
     }
@@ -187,8 +190,31 @@ Router.route('/list/:_id', {
   template: 'listPage',
   data: function() {
     var currentList = this.params._id;
-    return Lists.findOne({ _id: currentList });
+    var currentUser = Meteor.userId();
+    return Lists.findOne({ _id: currentList, createdBy: currentUser });
     // console.log(this.params.someParameter); // params is what you type in the browser
+  },
+  onRun: function() {
+    console.log("You triggered 'onRun' for 'listPage' route.");
+    this.next();
+  },
+  onRerun: function(){
+        console.log("You triggered 'onRerun' for 'listPage' route.");
+  },
+  onBeforeAction: function(){
+      console.log("You triggered 'onBeforeAction' for 'listPage' route.");
+      var currentUser = Meteor.userId();
+      if(currentUser){
+          this.next();
+      } else {
+          this.render("login");
+      }
+  },
+  onAfterAction: function(){
+      console.log("You triggered 'onAfterAction' for 'listPage' route.");
+  },
+  onStop: function(){
+      console.log("You triggered 'onStop' for 'listPage' route.");
   }
 });
 
@@ -197,6 +223,10 @@ Router.route('/list/:_id', {
 - check the params for find
 - types of events that can be handled
 - jQuery for selecting DOM elements
+
+
+notes:
+- route.go vs. render (latter does not redirect)
 
 */
 

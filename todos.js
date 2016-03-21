@@ -63,14 +63,18 @@ if (Meteor.isClient) {
         var documentId = this._id;
         var todoItem = $(event.target).val(); // target: get element that triggered event
 
-        Meteor.call('updateTodoItem', documentId, todoItem, function(error, results) {
-          if (error) {
-            console.log(error.reason);
-          }
-          else {
-            console.log("Changed todo!");
-          }
-        });
+        var isCompleted = this.completed;
+
+        if (!isCompleted) {
+          Meteor.call('updateTodoItem', documentId, todoItem, function(error, results) {
+            if (error) {
+              console.log(error.reason);
+            }
+            else {
+              console.log("Changed todo!");
+            }
+          });
+        }
         // console.log(event.which);
       }
     },
@@ -304,41 +308,44 @@ if (Meteor.isServer) {
     },
 
     'changeTodoStatus': function(documentId, isCompleted) {
+      check(isCompleted, Boolean);
       var currentUser = Meteor.userId();
+      var data = {
+        _id: documentId,
+        createdBy: currentUser
+      }
       if (!currentUser) {
         throw new Meteor.Error("not-logged-in", "You are not logged in!"); // is there a set of built-in identifiers?
       }
 
-      if (isCompleted) {
-        console.log("Task marked as incomplete.");
-        return Todos.update({ _id: documentId },
-                      {$set: { completed: false }});
-      }
-      else {
-        console.log("Taks marked as complete.");
-        return Todos.update({ _id: documentId },
-                      {$set: { completed: true }});
-      }
+      return Todos.update(data, {$set: { completed: isCompleted }});
 
     },
 
     'updateTodoItem': function(documentId, todoItem) {
       var currentUser = Meteor.userId();
+      var data = {
+        _id: documentId,
+        createdBy: currentUser
+      }
       if (!currentUser) {
         throw new Meteor.Error("not-logged-in", "You are not logged in!"); // is there a set of built-in identifiers?
       }
 
-      return Todos.update({ _id: documentId },
-                     {$set: { name: todoItem }});
+      return Todos.update(data, {$set: { name: todoItem }}); // query both documentId and created by currentUser; is latter necessary?
     },
 
     'removeTodo': function(documentId) {
       var currentUser = Meteor.userId();
+      var data = {
+        _id: documentId,
+        createdBy: currentUser
+      }
       if (!currentUser) {
         throw new Meteor.Error("not-logged-in", "You are not logged in!"); // is there a set of built-in identifiers?
       }
 
-      return Todos.remove({ _id: documentId });
+      return Todos.remove(data);
     }
 
   });

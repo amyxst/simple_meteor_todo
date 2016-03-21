@@ -2,10 +2,13 @@ Todos = new Mongo.Collection('todos');
 Lists = new Mongo.Collection('lists');
 
 Router.configure({ // options here will apply to all routes
-  layoutTemplate: 'main'
+  layoutTemplate: 'main',
+  loadingTemplate: 'loading'
+
 });
 
 if (Meteor.isClient) {
+
 
   Template.todos.helpers({
     'todo': function() {
@@ -21,15 +24,15 @@ if (Meteor.isClient) {
       var todoName = $('[name="todoName"]').val(); // alt: event.target.todoName.value
       var currentUser = Meteor.userId();
       var currentList = this._id; // gets the list ID from including {{todos}} in listPage (trickles down)
-      Todos.insert({
-        name: todoName,
-        completed: false,
-        createdAt: new Date(),
-        createdBy: currentUser,
-        listId: currentList
+      Meteor.call('createNewTodo', currentList, todoName, function(error, results) {
+        if (error) {
+          console.log(error.reason);
+        }
+        else {
+          $('[name="todoName"]').val('');
+        }
       });
 
-      $('[name="todoName"]').val('');
     }
   });
 
@@ -40,7 +43,14 @@ if (Meteor.isClient) {
 
       var confirm = window.confirm("Delete this task?");
       if (confirm) {
-        Todos.remove({ _id: documentId });
+        Meteor.call('removeTodo', documentId, function(error, results) {
+          if (error) {
+            console.log(error.reason);
+          }
+          else {
+            console.log("Deleted todo!");
+          }
+        });
       }
     },
 
@@ -52,9 +62,16 @@ if (Meteor.isClient) {
       else {
         var documentId = this._id;
         var todoItem = $(event.target).val(); // target: get element that triggered event
-        Todos.update({ _id: documentId },
-                     {$set: { name: todoItem }});
-        console.log(event.which);
+
+        Meteor.call('updateTodoItem', documentId, todoItem, function(error, results) {
+          if (error) {
+            console.log(error.reason);
+          }
+          else {
+            console.log("Changed todo!");
+          }
+        });
+        // console.log(event.which);
       }
     },
 
@@ -62,16 +79,11 @@ if (Meteor.isClient) {
       var documentId = this._id;
       var isCompleted = this.completed;
 
-      if (isCompleted) {
-        Todos.update({ _id: documentId },
-                      {$set: { completed: false }});
-        console.log("Task marked as incomplete.");
-      }
-      else {
-        Todos.update({ _id: documentId },
-                      {$set: { completed: true }});
-        console.log("Taks marked as complete.");
-      }
+      Meteor.call('changeTodoStatus', documentId, isCompleted, function(error, response) {
+        if (error) {
+          console.log(error.reason);
+        }
+      });
     }
 
   });
@@ -108,14 +120,23 @@ if (Meteor.isClient) {
     'submit form': function(event) {
       event.preventDefault();
       var listName = $('[name=listName]').val();
-      var currentUser = Meteor.userId();
-      Lists.insert({
-        name: listName,
-        createdBy: currentUser
-      }, function(error, results){
-        Router.go('listPage', { _id: results }); // passing in param of _id (results) to route
+
+      Meteor.call('createNewList', listName, function(error, results) {
+        if (error) {
+          console.log(error.reason);
+        }
+        else {
+          Router.go('listPage', { _id: results });
+          $('[name=listName]').val('');
+        }
       });
-      $('[name=listName]').val('');
+      // var currentUser = Meteor.userId();
+      // Lists.insert({
+      //   name: listName,
+      //   createdBy: currentUser
+      // }, function(error, results){
+      //   Router.go('listPage', { _id: results }); // passing in param of _id (results) to route
+      // });
     }
   });
 
@@ -129,20 +150,32 @@ if (Meteor.isClient) {
   Template.register.events({
     'submit form': function() {
       event.preventDefault();
-      var email = $('[name=email]').val();
-      var password = $('[name=password').val();
-      Accounts.createUser({
-        email: email,
-        password: password
-      }, function(error) {
-        if (error) {
-          console.log(error.reason);
-        }
-        else {
-          Router.go("home");
-        }
-      });
+      
     }
+  });
+
+  Template.register.onRendered(function() {
+    $('.register').validate({
+      submitHandler: function(event) {
+        var email = $('[name=email]').val();
+        var password = $('[name=password').val();
+        Accounts.createUser({
+          email: email,
+          password: password
+        }, function(error) {
+          if (error) {
+            if (error.reason == "Email already exists.") {
+              validator.showErrors({
+                email: "That email already belongs to a registered user."
+              });
+            }
+          }
+          else {
+            Router.go("home");
+          }
+        });
+      }
+    });
   });
 
   Template.navigation.events({
@@ -156,25 +189,169 @@ if (Meteor.isClient) {
   Template.login.events({
     'submit form': function(event) {
       event.preventDefault();
-      var email = $('[name=email]').val();
-      var password = $('[name=password]').val();
-      Meteor.loginWithPassword(email, password, function(error) {
-        if (error) {
-          console.log(error.reason);
-        }
-        else {
-          var currentRoute = Router.current().route.getName();
-          if (currentRoute == "login") {
-            Router.go("home"); // only redirect to home if at login page, otherwise stay at rounte
-          } // QUESTION: after user logs in, then is the rendering of the route (i.e. not login) handled by if (currentUser), this.next()?
-        }
-      });
+      
+    }
+  });
+
+  Template.login.onCreated(function() {
+    console.log("The login template was just created");
+  });
+
+  Template.login.onRendered(function() {
+    $('.login').validate({
+      submitHandler: function(event) { // executes when associated form is submitted
+        var email = $('[name=email]').val();
+        var password = $('[name=password]').val();
+        Meteor.loginWithPassword(email, password, function(error) {
+          if (error) {
+            if(error.reason == "User not found"){
+              validator.showErrors({
+                  email: "That email doesn't belong to a registered user."   
+              });
+            }
+            if(error.reason == "Incorrect password"){
+              validator.showErrors({
+                  password: "You entered an incorrect password."    
+              });
+            }
+          }
+          else {
+            var currentRoute = Router.current().route.getName();
+            if (currentRoute == "login") {
+              Router.go("home"); // only redirect to home if at login page, otherwise stay at rounte
+            } // QUESTION: after user logs in, then is the rendering of the route (i.e. not login) handled by if (currentUser), this.next()?
+          }
+        });
+      }
+    });
+  });
+
+  Template.login.onDestroyed(function() {
+    console.log("The login template was just destroyed");
+  });
+
+  $.validator.setDefaults({
+    rules: {
+      email: {
+        required: true,
+        email: true
+      },
+      password: {
+        required: true,
+        minlength: 6
+      }
+
+    },
+    messages: {
+      email: {
+        required: "You must enter an email address.",
+        email: "You've entered an invalid email address."
+      },
+      password: {
+        required: "You must enter a password.",
+        minlength: "Your password must be at least {0} characters."
+      }
     }
   });
 
 }
 
 if (Meteor.isServer) {
+  Meteor.publish('lists', function() {
+    var currentUser = this.userId; // again, this.userId as opposed to Meteor.userId is used in publish
+    return Lists.find({ createdBy: currentUser });
+  }); // 'lists' is arbitrary name to refer to
+
+  Meteor.publish('todos', function(currentList) {
+    var currentUser = this.userId;
+    return Todos.find({ createdBy: currentUser, listId: currentList });
+  });
+
+  Meteor.methods({
+    'createNewList': function(listName) {
+      check(listName, String); // error will be thrown automatically if types don't match
+      var currentUser = Meteor.userId();
+      if (listName == "") {
+        listName = defaultName(currentUser);
+      }
+      var data = {
+        name: listName,
+        createdBy: currentUser
+      }
+      if (!currentUser) {
+        throw new Meteor.Error("not-logged-in", "You are not logged in!"); // is there a set of built-in identifiers?
+      }
+      return Lists.insert(data);
+    },
+
+    'createNewTodo': function(currentList, todoName) {
+      check(todoName, String);
+      var currentUser = Meteor.userId();
+
+      var data = {
+        name: todoName,
+        completed: false,
+        createdAt: new Date(),
+        createdBy: currentUser,
+        listId: currentList
+      };
+
+      if (!currentUser) {
+        throw new Meteor.Error("not-logged-in", "You are not logged in!"); // is there a set of built-in identifiers?
+      }
+
+      return Todos.insert(data);
+    },
+
+    'changeTodoStatus': function(documentId, isCompleted) {
+      var currentUser = Meteor.userId();
+      if (!currentUser) {
+        throw new Meteor.Error("not-logged-in", "You are not logged in!"); // is there a set of built-in identifiers?
+      }
+
+      if (isCompleted) {
+        console.log("Task marked as incomplete.");
+        return Todos.update({ _id: documentId },
+                      {$set: { completed: false }});
+      }
+      else {
+        console.log("Taks marked as complete.");
+        return Todos.update({ _id: documentId },
+                      {$set: { completed: true }});
+      }
+
+    },
+
+    'updateTodoItem': function(documentId, todoItem) {
+      var currentUser = Meteor.userId();
+      if (!currentUser) {
+        throw new Meteor.Error("not-logged-in", "You are not logged in!"); // is there a set of built-in identifiers?
+      }
+
+      return Todos.update({ _id: documentId },
+                     {$set: { name: todoItem }});
+    },
+
+    'removeTodo': function(documentId) {
+      var currentUser = Meteor.userId();
+      if (!currentUser) {
+        throw new Meteor.Error("not-logged-in", "You are not logged in!"); // is there a set of built-in identifiers?
+      }
+
+      return Todos.remove({ _id: documentId });
+    }
+
+  });
+
+  function defaultName(currentUser) {
+    var nextLetter = 'A'; // guessing that this var persists after function executes?
+    var nextName = 'List ' + nextLetter;
+    while (Lists.findOne({ name: nextName, createdBy: currentUser })) {
+        nextLetter = String.fromCharCode(nextLetter.charCodeAt(0) + 1);
+        nextName = 'List ' + nextLetter;
+    }
+    return nextName;
+  }
 
 }
 
@@ -182,8 +359,10 @@ Router.route('/register');
 Router.route('/login');
 Router.route('/', { // need to manually associate '/' with home
   name: 'home',
-  template: 'home'
-
+  template: 'home',
+  waitOn: function() {
+    return Meteor.subscribe('lists');
+  }
 });
 Router.route('/list/:_id', {
   name: 'listPage',
@@ -194,13 +373,13 @@ Router.route('/list/:_id', {
     return Lists.findOne({ _id: currentList, createdBy: currentUser });
     // console.log(this.params.someParameter); // params is what you type in the browser
   },
-  onRun: function() {
-    console.log("You triggered 'onRun' for 'listPage' route.");
-    this.next();
-  },
-  onRerun: function(){
-        console.log("You triggered 'onRerun' for 'listPage' route.");
-  },
+  // onRun: function() {
+  //   console.log("You triggered 'onRun' for 'listPage' route.");
+  //   this.next();
+  // },
+  // onRerun: function(){
+  //       console.log("You triggered 'onRerun' for 'listPage' route.");
+  // },
   onBeforeAction: function(){
       console.log("You triggered 'onBeforeAction' for 'listPage' route.");
       var currentUser = Meteor.userId();
@@ -210,11 +389,15 @@ Router.route('/list/:_id', {
           this.render("login");
       }
   },
-  onAfterAction: function(){
-      console.log("You triggered 'onAfterAction' for 'listPage' route.");
-  },
-  onStop: function(){
-      console.log("You triggered 'onStop' for 'listPage' route.");
+  waitOn: function() {
+    var currentList = this.params._id;
+    return [ Meteor.subscribe('lists'), Meteor.subscribe('todos', currentList) ]; // ** need to return
+  // },
+  // onAfterAction: function(){
+  //     console.log("You triggered 'onAfterAction' for 'listPage' route.");
+  // },
+  // onStop: function(){
+  //     console.log("You triggered 'onStop' for 'listPage' route.");
   }
 });
 
